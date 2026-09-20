@@ -337,6 +337,7 @@ namespace HttpServer
             const char *username_param;
             const char *password_param;
             const char *http_server_type_param;
+            uint64_t file_size_param;
             int type_param;
 
             json_object *jobj = json_tokener_parse(req.body.c_str());
@@ -349,6 +350,7 @@ namespace HttpServer
                 password_param = json_object_get_string(json_object_object_get(jobj, "password"));
                 http_server_type_param = json_object_get_string(json_object_object_get(jobj, "http_server_type"));
                 type_param = json_object_get_int(json_object_object_get(jobj, "type"));
+                file_size_param = json_object_get_uint64(json_object_object_get(jobj, "file_size"));
 
                 if (url_param == nullptr || hash_param == nullptr)
                 {
@@ -368,6 +370,7 @@ namespace HttpServer
                     pkg_data.host_info.http_server_type = http_server_type_param;
                 pkg_data.timestamp = Util::GetTick();
                 pkg_data.host_info.type = type_param;
+                pkg_data.size = file_size_param;
                 pkg_data.host_info.client = nullptr;
 
                 CONFIG::AddPackageInstallHostData(hash_param, pkg_data);
@@ -396,26 +399,12 @@ namespace HttpServer
 
             std::string path = pkg_host_data->path;
 
-            /*
-            if (req.method == "HEAD")
-            {
-                int64_t file_size;
-                int ret;
-
-                res.status = 204;
-                res.set_header("Content-Length", std::to_string(pkg_host_data->file_size));
-                res.set_header("Accept-Ranges", "bytes");
-                DeleteRemoteClient(tmp_client);
-                return;
-            }
-            */
-
             if (req.ranges.empty())
             {
                 res.status = 200;
 
                 res.set_content_provider(
-                    (1024*128), "application/octet-stream",
+                    pkg_host_data->size, "application/octet-stream",
                     [tmp_client, path](size_t offset, size_t length, DataSink &sink) {
                         int ret = tmp_client->GetRange(path, sink, length, offset);
                         return (ret == 1);
@@ -427,23 +416,14 @@ namespace HttpServer
             else
             {
                 res.status = 206;
-                size_t range_len = (req.ranges[0].second - req.ranges[0].first) + 1;
-                if (req.ranges[0].second >= 18000000000000000000ul)
-                {
-                    range_len = PKG_INITIAL_REQUEST_SIZE;
-                    res.set_header("Content-Length", std::to_string(range_len));
-                    res.set_header("Content-Range", std::string("bytes ") + std::to_string(req.ranges[0].first)+"-" + std::to_string(req.ranges[0].first+PKG_INITIAL_REQUEST_SIZE-1) + "/"+std::to_string(range_len));
-                }
-
-                std::pair<ssize_t, ssize_t> range = req.ranges[0];
                 res.set_content_provider(
-                    range_len, "application/octet-stream",
-                    [tmp_client, path, range, range_len](size_t offset, size_t length, DataSink &sink) {
+                    pkg_host_data->size, "application/octet-stream",
+                    [tmp_client, path](size_t offset, size_t length, DataSink &sink) {
                         int ret;
-                        ret = tmp_client->GetRange(path, sink, range_len, range.first);
+                        ret = tmp_client->GetRange(path, sink, length, offset);
                         return (ret==1);
                     },
-                    [tmp_client, path, range](bool success) {
+                    [tmp_client, path](bool success) {
                         DeleteRemoteClient(tmp_client);
                     });
             }

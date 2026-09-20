@@ -43,6 +43,7 @@ struct PackageInstallData
 {
     HostInfo host_info;
     std::string path;
+    uint64_t size;
     uint64_t timestamp;
 };
 
