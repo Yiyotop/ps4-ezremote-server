@@ -27,7 +27,6 @@ extern "C"
     int sceNetPoolCreate(const char *name, int size, int flags);
     int sceNetPoolDestroy(int memid);
     int sceNetTerm(void);
-    int sceKernelSendNotificationRequest(int, void *, size_t, int);
     int sceSystemServiceReceiveEvent(SceSystemServiceEvent *event);
 }
 
